@@ -1,7 +1,6 @@
 package com.airlock.iam.scim.handler;
 
-import com.airlock.iam.base.api.domain.model.user.UserId;
-import com.airlock.iam.common.api.domain.model.store.user.UserStore;
+import com.airlock.iam.common.api.domain.model.store.user.InsertingUserStore;
 import com.airlock.iam.common.api.domain.model.user.PersistentUser;
 import com.airlock.iam.scim.jpa.entity.MedusaUser;
 import com.airlock.iam.scim.jpa.repository.MedusaUserRepository;
@@ -9,6 +8,7 @@ import de.captaingoldfish.scim.sdk.common.constants.HttpStatus;
 import de.captaingoldfish.scim.sdk.common.constants.enums.SortOrder;
 import de.captaingoldfish.scim.sdk.common.exceptions.ConflictException;
 import de.captaingoldfish.scim.sdk.common.exceptions.DocumentValidationException;
+import de.captaingoldfish.scim.sdk.common.exceptions.InternalServerException;
 import de.captaingoldfish.scim.sdk.common.exceptions.ResourceNotFoundException;
 import de.captaingoldfish.scim.sdk.common.resources.User;
 import de.captaingoldfish.scim.sdk.common.schemas.SchemaAttribute;
@@ -29,9 +29,14 @@ public class UserHandler extends ResourceHandler<User> {
     private final MedusaUserRepository medusaUserRepository;
     private final UserMapper userMapper;
     private final PersistentUserMapper persistentUserMapper;
-    public final UserStore userStore;
+    public final InsertingUserStore userStore;
 
-    public UserHandler(MedusaUserRepository medusaUserRepository, UserMapper userMapper, PersistentUserMapper persistentUserMapper, UserStore userStore) {
+    public UserHandler(
+            MedusaUserRepository medusaUserRepository,
+            UserMapper userMapper,
+            PersistentUserMapper persistentUserMapper,
+            InsertingUserStore userStore
+    ) {
         this.medusaUserRepository = medusaUserRepository;
         this.userMapper = userMapper;
         this.persistentUserMapper = persistentUserMapper;
@@ -41,11 +46,14 @@ public class UserHandler extends ResourceHandler<User> {
     @Override
     @Transactional
     public User createResource(User user, Context context) {
-        if (medusaUserRepository.existsMedusaUserByUserName(user.getUserName().orElseThrow(() -> new DocumentValidationException("username is required", HttpStatus.BAD_REQUEST, null)))) {
-            throw new ConflictException("resource with id '" + user.getUserName() + "' does already exist");
-        }
-        MedusaUser medusaUser = medusaUserRepository.save(userMapper.userToMedusaUser(user));
-        return userMapper.medusaUserToUser(medusaUser);
+        userStore.findByIdentity(userId(user.getUserName().orElseThrow(() -> new DocumentValidationException("username is required", HttpStatus.BAD_REQUEST, null))))
+                .ifPresent(persistedUser -> {
+                    throw new ConflictException("resource with id '" + user.getUserName() + "' does already exist");
+                });
+
+        userStore.insert(persistentUserMapper.userToPersistentUser(user));
+        PersistentUser persistentUser = userStore.findByIdentity(userId(user.getUserName().get())).orElseThrow(() -> new InternalServerException("Resource wasn't inserted as expected"));
+        return persistentUserMapper.persistentUserToUser(persistentUser);
     }
 
     @Override
@@ -55,7 +63,6 @@ public class UserHandler extends ResourceHandler<User> {
 
     @Override
     public PartialListResponse<User> listResources(long startIndex, int count, FilterNode filter, SchemaAttribute sortBy, SortOrder sortOrder, List<SchemaAttribute> attributes, List<SchemaAttribute> excludedAttributes, Context context) {
-        userStore.find();
         List<MedusaUser> medusaUsers = medusaUserRepository.findAll();
         return PartialListResponse.<User>builder().resources(userMapper.medusaUsersToUsers(medusaUsers)).totalResults(medusaUsers.size()).build();
     }

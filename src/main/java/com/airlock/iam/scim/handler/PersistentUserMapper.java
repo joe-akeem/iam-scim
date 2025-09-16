@@ -2,6 +2,8 @@ package com.airlock.iam.scim.handler;
 
 import com.airlock.iam.common.api.domain.model.user.PersistentUser;
 import com.airlock.iam.core.misc.impl.persistency.SimplePersistentUserWithPassword;
+import de.captaingoldfish.scim.sdk.common.constants.HttpStatus;
+import de.captaingoldfish.scim.sdk.common.exceptions.DocumentValidationException;
 import de.captaingoldfish.scim.sdk.common.resources.User;
 import de.captaingoldfish.scim.sdk.common.resources.complex.Name;
 import de.captaingoldfish.scim.sdk.common.resources.multicomplex.Address;
@@ -12,6 +14,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE, unmappedSourcePolicy = ReportingPolicy.IGNORE)
 public interface PersistentUserMapper {
@@ -26,7 +29,7 @@ public interface PersistentUserMapper {
     User persistentUserToUser(PersistentUser user);
 
 
-    @Mapping(target = "name", expression = "java(user.getId().orElse(null))")
+    @Mapping(target = "name", source = "user", qualifiedByName = "usernameConverter")
     @Mapping(target = "locked" , expression = "java(!user.isActive().orElse(true))")
     @Mapping(target = "roles", ignore = true)
     // FIXME: we need to save the externalid
@@ -58,8 +61,15 @@ public interface PersistentUserMapper {
                 .build()));
     }
 
-    @AfterMapping
-    default void mapContextDataToPersistentUser(User user, @MappingTarget SimplePersistentUserWithPassword persistentUser) {
-        // FIXME
+    @Named("usernameConverter")
+    default String usernameConverter(User user) {
+        Optional<String> userId = user.getId();
+        Optional<String> userName = user.getUserName();
+
+        if (userId.isPresent() && userName.isPresent() && !userId.get().equals(userName.get()) ) {
+            throw new DocumentValidationException("In IAM the username must be the same as the ID", HttpStatus.BAD_REQUEST, null);
+        }
+
+        return userId.orElse(userName.orElseThrow(() -> new DocumentValidationException("username is required", HttpStatus.BAD_REQUEST, null)));
     }
 }

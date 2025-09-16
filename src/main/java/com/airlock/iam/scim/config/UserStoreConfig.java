@@ -1,5 +1,6 @@
 package com.airlock.iam.scim.config;
 
+import com.airlock.iam.common.api.domain.model.store.user.InsertingUserStore;
 import com.airlock.iam.common.api.domain.model.store.user.UserStore;
 import com.airlock.iam.core.misc.plugin.config.activation.ConfigActivator;
 import com.airlock.iam.license.domain.service.counter.InstanceCounter;
@@ -8,6 +9,7 @@ import com.airlock.iam.plugin.framework.application.service.license.DefaultPlugi
 import com.airlock.iam.plugin.framework.application.service.license.LicenseManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -59,7 +61,13 @@ public class UserStoreConfig {
 
     @Bean
     @RequestScope()
-    public UserStore userStore(ScimAppMedusaConfiguration scimAppMedusaConfiguration) throws InterruptedException {
-       return Objects.requireNonNull(scimAppMedusaConfiguration.userStore(), "No UserStore found. Config activated?");
+    public InsertingUserStore userStore(ScimAppMedusaConfiguration scimAppMedusaConfiguration) throws InterruptedException {
+        UserStore userStore = Objects.requireNonNull(scimAppMedusaConfiguration.userStore(), "No UserStore found. Config activated?");
+
+        Class<?> userStoreClass = AopProxyUtils.ultimateTargetClass(userStore);
+        if (InsertingUserStore.class.isAssignableFrom(userStoreClass)) {
+            return (InsertingUserStore) userStore;
+        }
+        throw new IllegalStateException("UserStore does not implement InsertingUserStore");
     }
 }
