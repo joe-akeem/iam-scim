@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+// FIXME: the PersistentUser.contextData to User mapping is what we should take from the medusa configuration
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE, unmappedSourcePolicy = ReportingPolicy.IGNORE)
 public interface PersistentUserMapper {
 
@@ -24,7 +25,7 @@ public interface PersistentUserMapper {
     @Mapping(target = "meta.lastModified", expression = "java(java.time.Instant.now())"/* FIXME: , qualifiedByName = "dateConverter", source = "updatedAt"*/)
     @Mapping(target = "externalId", ignore = true) // FIXME: we need to return this
     @Mapping(target = "userName", source = "name")
-    @Mapping(target = "name", ignore = true)
+    @Mapping(target = "name", source = "contextData", qualifiedByName = "contextDataToNameConverter")
     @Mapping(target = "active" , expression = "java(!user.isLocked())")
     User persistentUserToUser(PersistentUser user);
 
@@ -44,21 +45,29 @@ public interface PersistentUserMapper {
         return instant.atOffset(ZoneOffset.systemDefault().getRules().getOffset(instant));
     }
 
-
-    // FIXME: this is what we should do dynamically
     @AfterMapping
-    default void mapContextDataFromPersistentUser(PersistentUser persistentUser, @MappingTarget User user) {
-        Map<String, Object> contextData = persistentUser.getContextData();
-        user.setName(Name.builder()
-                        .givenName(contextData.get("givenname").toString())
-                        .familyName(contextData.get("surname").toString())
-                .build());
-        user.setPreferredLanguage(contextData.get("language").toString());
-        user.setAddresses(List.of(Address.builder()
-                        .locality(contextData.get("town").toString())
-                        .postalCode(contextData.get("zipcode").toString())
-                        .streetAddress(contextData.get("street").toString() + " " + contextData.get("streetnumber"))
-                .build()));
+    default void mapContextDataToPersistentUser(@MappingTarget SimplePersistentUserWithPassword persistentUser, User user) {
+        user.getName().ifPresent(name -> mapNameToContextData(name, persistentUser));
+        user.getPreferredLanguage().ifPresent(preferredLanguage -> persistentUser.putContextDataValue("language", preferredLanguage));
+    }
+
+    default void mapNameToContextData(Name name, SimplePersistentUserWithPassword persistentUser) {
+        name.getGivenName().ifPresent(givenName -> persistentUser.putContextDataValue("givenname", givenName));
+        name.getFamilyName().ifPresent(familyName -> persistentUser.putContextDataValue("surname", familyName));
+    }
+
+    @Named("contextDataToNameConverter")
+    default Name contextDataToNameConverter(Map<String, Object> contextData) {
+        String givenname = contextData.get("givenname").toString();
+        String surname = contextData.get("surname").toString();
+
+        if (givenname != null || surname != null) {
+            return Name.builder()
+                    .givenName(givenname)
+                    .familyName(surname)
+                    .build();
+        }
+        return null;
     }
 
     @Named("usernameConverter")
