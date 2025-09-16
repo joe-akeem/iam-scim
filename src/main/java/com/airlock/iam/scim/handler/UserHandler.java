@@ -1,5 +1,8 @@
 package com.airlock.iam.scim.handler;
 
+import com.airlock.iam.base.api.domain.model.user.UserId;
+import com.airlock.iam.common.api.domain.model.store.user.UserStore;
+import com.airlock.iam.common.api.domain.model.user.PersistentUser;
 import com.airlock.iam.scim.jpa.entity.MedusaUser;
 import com.airlock.iam.scim.jpa.repository.MedusaUserRepository;
 import de.captaingoldfish.scim.sdk.common.constants.HttpStatus;
@@ -18,15 +21,21 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+import static com.airlock.iam.base.api.domain.model.user.UserId.userId;
+
 @Service
 public class UserHandler extends ResourceHandler<User> {
 
     private final MedusaUserRepository medusaUserRepository;
     private final UserMapper userMapper;
+    private final PersistentUserMapper persistentUserMapper;
+    public final UserStore userStore;
 
-    public UserHandler(MedusaUserRepository medusaUserRepository, UserMapper userMapper) {
+    public UserHandler(MedusaUserRepository medusaUserRepository, UserMapper userMapper, PersistentUserMapper persistentUserMapper, UserStore userStore) {
         this.medusaUserRepository = medusaUserRepository;
         this.userMapper = userMapper;
+        this.persistentUserMapper = persistentUserMapper;
+        this.userStore = userStore;
     }
 
     @Override
@@ -41,11 +50,12 @@ public class UserHandler extends ResourceHandler<User> {
 
     @Override
     public User getResource(String id, List<SchemaAttribute> attributes, List<SchemaAttribute> excludedAttributes, Context context) {
-        return userMapper.medusaUserToUser(medusaUserRepository.getMedusaUserByUserName(id));
+        return userStore.findByIdentity(userId(id)).map(persistentUserMapper::persistentUserToUser).orElse(null);
     }
 
     @Override
     public PartialListResponse<User> listResources(long startIndex, int count, FilterNode filter, SchemaAttribute sortBy, SortOrder sortOrder, List<SchemaAttribute> attributes, List<SchemaAttribute> excludedAttributes, Context context) {
+        userStore.find();
         List<MedusaUser> medusaUsers = medusaUserRepository.findAll();
         return PartialListResponse.<User>builder().resources(userMapper.medusaUsersToUsers(medusaUsers)).totalResults(medusaUsers.size()).build();
     }

@@ -45,6 +45,13 @@ repositories {
 			password = findProperty("artifactoryPassword") as String? ?: ""
 		}
 	}
+	maven {
+		url = uri("https://artifacts.ergon.ch/artifactory/ergon-public-releases/")
+		credentials {
+			username = findProperty("artifactoryUser") as String? ?: ""
+			password = findProperty("artifactoryPassword") as String? ?: ""
+		}
+	}
 }
 
 
@@ -56,25 +63,32 @@ tasks.named<BootJar>("bootJar") {
 dependencies {
 	val scimSdkVersion = "1.28.0"
 	val mapStructVersion = "1.5.5.Final"
-	val iamVersion = "8.6.0-956.8ce52ae"
+//	val iamVersion = "8.6.0-956.8ce52ae"
+	val iamVersion = "8.6.0-36.2a39067"
 
 	implementation("org.springframework.boot:spring-boot-starter")
 	implementation("org.springframework.boot:spring-boot-starter-web")
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 	implementation("de.captaingoldfish:scim-sdk-server:${scimSdkVersion}")
 	implementation("de.captaingoldfish:scim-sdk-client:${scimSdkVersion}")
-	implementation("com.airlock.iam:core:${iamVersion}") {
+	implementation("com.airlock.iam:core:${iamVersion}") { // FIXME only need ConfigActivator without all the other dependencies
 		exclude("com.aspose")
 		exclude("com.onespan")
 		exclude("cronto")
 		exclude(group = "com.airlock.iam", module = "platform")
-		exclude(group = "com.airlock.iam", module = "base")
 	}
-	implementation("com.airlock.iam:plugin-framework:${iamVersion}") {
-		exclude("ch.ergon")
+	implementation("com.airlock.iam:plugin-framework:${iamVersion}") { // FIXME: we only need the plugin framework
 		exclude(group = "com.airlock.iam", module = "platform")
 		exclude(group = "com.airlock.iam", module = "base")
 	}
+
+	implementation("com.airlock.iam:login-app:${iamVersion}") { // FIXME: do not use the loginapp
+		exclude("com.aspose")
+		exclude("com.onespan")
+		exclude("cronto")
+		exclude("vasco")
+	}
+
 
 	implementation("org.mapstruct:mapstruct:${mapStructVersion}")
 	annotationProcessor("org.mapstruct:mapstruct-processor:${mapStructVersion}")
