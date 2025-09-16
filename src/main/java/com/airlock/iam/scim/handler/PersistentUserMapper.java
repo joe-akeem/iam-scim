@@ -67,6 +67,7 @@ public interface PersistentUserMapper {
         Optional<String> userName = user.getUserName();
 
         if (userId.isPresent() && userName.isPresent() && !userId.get().equals(userName.get()) ) {
+            // there's our problem with the missing ID in the MEDUSA_USER table again...
             throw new DocumentValidationException("In IAM the username must be the same as the ID", HttpStatus.BAD_REQUEST, null);
         }
 

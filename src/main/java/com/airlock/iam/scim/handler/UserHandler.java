@@ -3,8 +3,6 @@ package com.airlock.iam.scim.handler;
 import com.airlock.iam.common.api.domain.model.store.user.DeletingUserStore;
 import com.airlock.iam.common.api.domain.model.store.user.InsertingUserStore;
 import com.airlock.iam.common.api.domain.model.user.PersistentUser;
-import com.airlock.iam.scim.jpa.entity.MedusaUser;
-import com.airlock.iam.scim.jpa.repository.MedusaUserRepository;
 import de.captaingoldfish.scim.sdk.common.constants.HttpStatus;
 import de.captaingoldfish.scim.sdk.common.constants.enums.SortOrder;
 import de.captaingoldfish.scim.sdk.common.exceptions.ConflictException;
@@ -27,21 +25,15 @@ import static com.airlock.iam.base.api.domain.model.user.UserId.userId;
 @Service
 public class UserHandler extends ResourceHandler<User> {
 
-    private final MedusaUserRepository medusaUserRepository;
-    private final UserMapper userMapper;
     private final PersistentUserMapper persistentUserMapper;
     public final InsertingUserStore insertingUserStore;
     public final DeletingUserStore deletingUserStore;
 
     public UserHandler(
-            MedusaUserRepository medusaUserRepository,
-            UserMapper userMapper,
             PersistentUserMapper persistentUserMapper,
             InsertingUserStore insertingUserStore,
             DeletingUserStore deletingUserStore
     ) {
-        this.medusaUserRepository = medusaUserRepository;
-        this.userMapper = userMapper;
         this.persistentUserMapper = persistentUserMapper;
         this.insertingUserStore = insertingUserStore;
         this.deletingUserStore = deletingUserStore;
@@ -74,17 +66,10 @@ public class UserHandler extends ResourceHandler<User> {
     @Override
     @Transactional
     public User updateResource(User resourceToUpdate, Context context) {
-        String id = resourceToUpdate.getId().orElseThrow(() -> new DocumentValidationException("id is required", HttpStatus.BAD_REQUEST, null));
-        String userName = resourceToUpdate.getId().orElseThrow(() -> new DocumentValidationException("userName is required", HttpStatus.BAD_REQUEST, null));
-        if (!id.equals(userName)) {
-            // there's our problem with the missing ID in the MEDUSA_USER table again...
-            throw new DocumentValidationException("In Airlock IAM the username cannot be changed. It is the unique ID", HttpStatus.BAD_REQUEST, null);
-        }
-        MedusaUser medusaUser = medusaUserRepository.getMedusaUserByUserName(resourceToUpdate.getUserName().orElseThrow(() -> new DocumentValidationException("username is required", HttpStatus.BAD_REQUEST, null)));
-        if (medusaUser == null) {
-            throw new ResourceNotFoundException("resource with id '" + resourceToUpdate.getUserName() + "' does not exist");
-        }
-        return userMapper.medusaUserToUser(medusaUserRepository.save(medusaUser));
+        insertingUserStore.update(persistentUserMapper.userToPersistentUser(resourceToUpdate));
+        PersistentUser persistentUser = insertingUserStore.findByIdentity(userId(resourceToUpdate.getId().orElseThrow())).orElseThrow(() -> new InternalServerException("Resource wasn't inserted as expected"));
+        return persistentUserMapper.persistentUserToUser(persistentUser);
+
     }
 
     @Override
