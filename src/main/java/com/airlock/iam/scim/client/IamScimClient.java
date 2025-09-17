@@ -46,10 +46,10 @@ public class IamScimClient {
         }
     }
 
-    public ServerResponse<User> getOneUser() {
+    public ServerResponse<User> getOneUser(String userName) {
         String endpointPath = EndpointPaths.USERS;
         try (ScimRequestBuilder scimRequestBuilder = new ScimRequestBuilder(scimApplicationBaseUrl, scimClientConfig)) {
-            return scimRequestBuilder.get(User.class, endpointPath, "bart.simpson@ergon.ch").sendRequest();
+            return scimRequestBuilder.get(User.class, endpointPath, userName).sendRequest();
         }
     }
 
@@ -68,14 +68,9 @@ public class IamScimClient {
         }
     }
 
-    public void updateUser() {
+    public void updateUser(String id, User updateUser) {
         try (ScimRequestBuilder scimRequestBuilder = new ScimRequestBuilder(scimApplicationBaseUrl, scimClientConfig);) {
             String endpointPath = EndpointPaths.USERS;
-            User updateUser = User.builder()
-                    .name(Name.builder()
-                            .givenName("Bart the Great")
-                            .build())
-                    .build();
             ServerResponse<User> userServerResponse = scimRequestBuilder.update(User.class, endpointPath, "bart.simpson@ergon.ch")
                     .setResource(updateUser)
                     .sendRequest();

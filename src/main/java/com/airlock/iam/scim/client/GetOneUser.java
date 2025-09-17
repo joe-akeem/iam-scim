@@ -8,7 +8,7 @@ import de.captaingoldfish.scim.sdk.common.resources.User;
 public class GetOneUser {
 
     public static void main(String[] args) throws JsonProcessingException {
-        ServerResponse<User> oneUser = new IamScimClient().getOneUser();
+        ServerResponse<User> oneUser = new IamScimClient().getOneUser("bart.simpson@ergon.ch");
 
         ObjectMapper objectMapper = new ObjectMapper();
         System.out.println(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(oneUser.getResource()));
